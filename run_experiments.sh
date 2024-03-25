@@ -14,7 +14,7 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 
-python_script="LLM_main.py"
+python_script="LLM_based_report_info_extraction.py"
 base_dir="$( cd -- "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )"
 base_data="${base_dir}/dataset"
 
