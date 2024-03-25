@@ -21,11 +21,11 @@ base_data="${base_dir}/dataset"
 BITS=$1 
 TIPPS=$2 
 
-declare -a models=(   "mistralai/Mixtral-8x7B-Instruct-v0.1" "LeoLM/leo-hessianai-70b-chat" "mistralai/Mistral-7B-Instruct-v0.2" "LeoLM/leo-hessianai-13b-chat" "LeoLM/leo-hessianai-7b-chat" "google/gemma-7b-it" "google/gemma-2b-it" ) # "LeoLM/leo-hessianai-7b-chat"  "mistralai/Mistral-7B-Instruct-v0.2" "mistralai/Mixtral-8x7B-Instruct-v0.1" "LeoLM/leo-hessianai-13b-chat" "LeoLM/leo-hessianai-7b-chat"  "LeoLM/leo-mistral-hessianai-7b-chat"   ) # "LeoLM/leo-hessianai-70b-chat" 
+declare -a models=( "mistralai/Mixtral-8x7B-Instruct-v0.1" "LeoLM/leo-hessianai-70b-chat" "mistralai/Mistral-7B-Instruct-v0.2" "LeoLM/leo-hessianai-13b-chat" "LeoLM/leo-hessianai-7b-chat" "google/gemma-7b-it" "google/gemma-2b-it" ) 
 declare -a device_map=( "accelerate" "accelerate" "accelerate" "accelerate" "accelerate" "accelerate" "accelerate" "accelerate" "accelerate" "accelerate" "accelerate" ) #models that are to big for one gpu need to be run with auto and gradient checkpointing
-declare -a num_train_dataset=(  "14580" "7000" "3500" "2000" "1000" "500" "250" "100" "50" "25" "10" "1" "0") #"1" "0
-declare -a max_steps=( "256" "128" "64" "64" "64" "32" "32" "8" "8" "4" "4" "1" "1"  ) # "1" "1"
-declare -a eval_steps=(  "8" "4" "2" "2" "2" "2" "1" "1" "1" "1" "1" "1" "1" ) #  "1" "1"
+declare -a num_train_dataset=(  "14580" "7000" "3500" "2000" "1000" "500" "250" "100" "50" "25" "10" "1" "0") 
+declare -a max_steps=( "256" "128" "64" "64" "64" "32" "32" "8" "8" "4" "4" "1" "1"  ) 
+declare -a eval_steps=(  "8" "4" "2" "2" "2" "2" "1" "1" "1" "1" "1" "1" "1" ) 
 
 add_one_shot_report="False" 
 do_train="True"
@@ -49,7 +49,6 @@ else
     echo "Wrong argument given for BITS (first arg)"
     exit 1 
 fi
-
 tipps="False"
 tipps_str="no_tipps"
 if [ $TIPPS = "tipps" ]; then
@@ -57,15 +56,13 @@ if [ $TIPPS = "tipps" ]; then
     tipps_str="with_tipps"
 fi
 
-
-
 for m in "${!models[@]}"; do
     for i in "${!num_train_dataset[@]}"; do 
 
         launch="python3 "
         gradient_checkpointing="False" #True
         if [[ "${device_map[$m]}" = "accelerate" ]]; then 
-            launch="NCCL_DEBUG=INFO /home/snowak/.local/bin/accelerate launch --multi_gpu --num_processes 6 --num_machines 1 --mixed_precision no --dynamo_backend no "
+            launch="NCCL_DEBUG=INFO accelerate launch --multi_gpu --num_processes 6 --num_machines 1 --mixed_precision no --dynamo_backend no "
         fi
         zero_shot="False"
         if [[ "${num_train_dataset[$i]}" = "0" ]]; then 
@@ -77,8 +74,7 @@ for m in "${!models[@]}"; do
             one_shot="True" 
         fi
 
-
-        base_output="/scratch/snowak/LLM_with_Ben/${DEBUG}LLM_output/${BITS}/${tipps_str}/${models[$m]}"
+        base_output="${base_dir}/${BITS}/${tipps_str}/${models[$m]}"
         dataset="${base_data}/LLM_data_train_${num_train_dataset[$i]}"
         output="${base_output}/LLM_data_train_${num_train_dataset[$i]}"
         mkdir -p $output 
