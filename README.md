@@ -12,3 +12,8 @@ pip install -r requirements.txt
 ```
 to install the necessary libraries.
 
+# Citation
+Please cite the poriginal work:
+Open-source large language models for on-site retrospective information extraction from free-text reports in radiological clinics
+S Nowak, B Wulff, M Theis et al. 
+
