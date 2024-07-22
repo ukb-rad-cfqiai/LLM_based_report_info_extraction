@@ -75,17 +75,8 @@ ONE_SHOT_OUTPUT = label_to_output_seq(EXAMPLE_LABEL)
 ONE_SHOT_EXAMPLE = f"{ONE_SHOT_REPORT}\nDies ist für den Beispiel {TEXT_DESCRIPTION} ein Korrekt ausgefülltes JSON: {ONE_SHOT_OUTPUT}"
 PRE_REPORT_PROMPT = f"Dies ist der {TEXT_DESCRIPTION} den du jetzt klassifizieren sollst: "
 
-from sklearn.metrics import (
-    accuracy_score,
-    balanced_accuracy_score,
-    f1_score,
-    precision_score,
-    recall_score,
-    hamming_loss,
-    precision_recall_curve,
-    roc_curve,
-    auc,
-    classification_report)
+from ulits import get_label_from_decoded_str, get_metric_dict
+from sklearn.metrics import classification_report
 
 import os, argparse, torch, json, re,  pickle, ast, time
 from torch.utils.data import DataLoader, default_collate
@@ -302,80 +293,6 @@ def get_model_and_tokenizer(args, only_tokenizer=False):
         model.config.bos_token = tokenizer.bos_token
 
     return model, tokenizer
-
-def unify_class_names_prior_json_load(prediction):    
-    for c_idx, c in enumerate(CLASSES_NEW):
-        if f'{c}:' in prediction: prediction = prediction.replace(f'{c}:',  f'"{c}":')
-    return prediction
-
-def get_label_from_decoded_str(decoded_str):
-    pred_list = [0 for _ in CLASSES]
-    decoded_str = unify_class_names_prior_json_load(decoded_str)
-    num_missing_class = 0
-    failed_json = False
-    try:
-        pred_dict = json.loads(decoded_str)
-    except:
-        failed_json = True
-        
-    if not failed_json:
-        for c_idx, c in enumerate(CLASSES_NEW):
-            if c in pred_dict: 
-                if pred_dict[c] in [0, 1, True, False]:
-                    pred_list[c_idx] = int(pred_dict[c])
-                else:
-                    failed_json = True
-                    break
-            else:
-                num_missing_class += 1
-                pred_list[c_idx] = int(not(y_true[-1][c_idx])) #treat as wrong predicitons for eval
-        
-    if failed_json:
-        extracted_numbers = list(map(int, re.findall(r'\b[01]\b', re.sub(r'\b[2-9]\b', '1', prediction))))
-        for c_idx, c in enumerate(CLASSES_NEW):
-            if c in prediction and len(extracted_numbers)>c_idx:
-                pred_list[c_idx] = extracted_numbers[c_idx]
-            else:
-                missing_class = True
-                pred_list[c_idx] = int(not(y_true[-1][c_idx])) #treat as wrong predicitons for eval
-                
-    return pred_list, failed_json, num_missing_class
-
-def get_metric_dict(y_true, y_pred):
-    metric_dict = {}
-    metric_dict = get_metric_dict_F1(y_true, y_pred, metric_dict)
-    metric_dict = get_metric_dict_Acc(y_true, y_pred, metric_dict)
-    metric_dict = get_metric_dict_SensSpec(y_true, y_pred, metric_dict)
-    metric_dict = get_metric_dict_RecallPrec(y_true, y_pred, metric_dict)
-    metric_dict = get_metric_dict_Numbers(y_true, y_pred, metric_dict)
-    return metric_dict
-
-def get_metric_dict_F1(y_true, y_pred, metric_dict={}):
-    metric_dict['F1'] = f1_score(y_true=y_true, y_pred=y_pred, average='macro', zero_division = 0)  
-    for c_idx, c in enumerate(CLASSES): metric_dict['F1_'+c] = f1_score(y_true=y_true[:,c_idx], y_pred=y_pred[:,c_idx], zero_division = 0)
-    return metric_dict
-
-def get_metric_dict_Acc(y_true, y_pred, metric_dict={}):
-    metric_dict['Acc'] = accuracy_score(y_true, y_pred, normalize=True, sample_weight=None) 
-    for c_idx, c in enumerate(CLASSES): metric_dict['Acc_'+c] =  metric_dict['Acc_'+c] = accuracy_score(y_true[:,c_idx], y_pred[:,c_idx])
-    return metric_dict
-
-def get_metric_dict_SensSpec(y_true, y_pred, metric_dict={}):
-    for c_idx, c in enumerate(CLASSES): 
-        metric_dict['Sensitivity/Recall_'+c] =  recall_score(y_true=y_true[:,c_idx], y_pred=y_pred[:,c_idx], zero_division = 0)
-        metric_dict['Specificity_'+c] =  recall_score(y_true=~(y_true[:,c_idx]>0), y_pred=~(y_pred[:,c_idx]>0), zero_division = 0)
-    return metric_dict
-
-def get_metric_dict_RecallPrec(y_true, y_pred, metric_dict={}): 
-    for c_idx, c in enumerate(CLASSES): 
-        metric_dict['Sensitivity/Recall_'+c] =  recall_score(y_true=y_true[:,c_idx], y_pred=y_pred[:,c_idx], zero_division = 0)
-        metric_dict['Precision_'+c] =  precision_score(y_true=y_true[:,c_idx], y_pred=y_pred[:,c_idx], zero_division = 0)
-    return metric_dict
-
-def get_metric_dict_Numbers(y_true, y_pred, metric_dict={}): 
-    metric_dict['Num_samples'] = len(y_true)  
-    for c_idx, c in enumerate(CLASSES): metric_dict['Num_positive'+c] = int(y_true[:,c_idx].sum())
-    return metric_dict
 
 class Dummy_Trainer(object):
     def __init__(self, model, tokenizer):
