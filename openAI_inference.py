@@ -1,5 +1,18 @@
-CLASSES = [ 'pleural_effusion',
-            'pneumothorax'  ]
+# Copyright 2024 Clinic for Diagnositic and Interventional Radiology, University Hospital Bonn, Germany
+#
+#    Licensed under the Apache License, Version 2.0 (the "License");
+#    you may not use this file except in compliance with the License.
+#    You may obtain a copy of the License at
+#
+#        http://www.apache.org/licenses/LICENSE-2.0
+#
+#    Unless required by applicable law or agreed to in writing, software
+#    distributed under the License is distributed on an "AS IS" BASIS,
+#    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#    See the License for the specific language governing permissions and
+#    limitations under the License.
+
+CLASSES = [ 'pleural_effusion', 'pneumothorax']
 
 POSITIVE_STR = "1"; NEGATIVE_STR = "0"; PLACEHOLDER_STR = "0"
 EXAMPLE_OUTPUT = '{'+",\n".join([ f'"{c}": {PLACEHOLDER_STR}' for c in CLASSES])+'}' 
@@ -17,26 +30,14 @@ pneumothorax: If the report mentions pneumothorax, hemopneumothorax, hydropneumo
 If the radiologist describes negates the presence of a pathology (examples: \"No evidence of circumscribed pneumonic infiltrates\", \"No pneumothorax\") or if he describes uncertainties (example: \"Infiltrates cannot be excluded with certainty / no reliable evidence\"), then leave 0 in the JSON for the respective pathology."""
 PRE_REPORT_PROMPT = f"This is the chest X-ray report for which you will create a JSON: "
 
-def old_to_new_label(label):
-    return [label[0], label[3]]
-
-from sklearn.metrics import (#MOD SN
-    accuracy_score,
-    balanced_accuracy_score,
-    f1_score,
-    precision_score,
-    recall_score,
-    hamming_loss,
-    precision_recall_curve,
-    roc_curve,
-    auc,
-    classification_report)
+from utils import get_label_from_decoded_str, get_metric_dict
+from sklearn.metrics import classification_report
 
 from tenacity import (
     retry,
     stop_after_attempt,
     wait_random_exponential,
-)  # for exponential backoff
+)  
 
 import os, argparse, json, re,  pickle, ast, time, argparse, pathlib
 join = os.path.join
@@ -65,85 +66,6 @@ def parse_arguments():
     args.basePath = os.path.dirname(__file__)+os.sep
     return args
 
-def get_label_from_decoded_str(decoded_str):
-    pred_list = [0 for _ in CLASSES]
-    decoded_str = unify_class_names_prior_json_load(decoded_str)
-    num_missing_class = 0
-    failed_json = False
-    try:
-        pred_dict = json.loads(decoded_str)
-    except:
-        failed_json = True
-        
-    if not failed_json:
-        for c_idx, c in enumerate(CLASSES_NEW):
-            if c in pred_dict: 
-                if pred_dict[c] in [0, 1, True, False]:
-                    pred_list[c_idx] = int(pred_dict[c])
-                else:
-                    failed_json = True
-                    break
-            else:
-                num_missing_class += 1
-                pred_list[c_idx] = int(not(y_true[-1][c_idx])) #treat as wrong predicitons for eval
-        
-    if failed_json:
-        extracted_numbers = list(map(int, re.findall(r'\b[01]\b', re.sub(r'\b[2-9]\b', '1', prediction))))
-    
-        for c_idx, c in enumerate(CLASSES_NEW):
-            if c in prediction and len(extracted_numbers)>c_idx:
-                pred_list[c_idx] = extracted_numbers[c_idx]
-            else:
-                missing_class = True
-                pred_list[c_idx] = int(not(y_true[-1][c_idx])) #treat as wrong predicitons for eval
-                
-    return pred_list, failed_json, num_missing_class
-
-def get_metric_dict(y_true, y_pred):
-    metric_dict = {}
-    metric_dict = get_metric_dict_F1(y_true, y_pred, metric_dict)
-    metric_dict = get_metric_dict_Acc(y_true, y_pred, metric_dict)
-    metric_dict = get_metric_dict_bAcc(y_true, y_pred, metric_dict)
-    metric_dict = get_metric_dict_SensSpec(y_true, y_pred, metric_dict)
-    metric_dict = get_metric_dict_RecallPrec(y_true, y_pred, metric_dict)
-    metric_dict = get_metric_dict_Numbers(y_true, y_pred, metric_dict)
-    return metric_dict
-
-def get_metric_dict_F1(y_true, y_pred, metric_dict={}):
-    metric_dict['F1'] = f1_score(y_true=y_true, y_pred=y_pred, average='macro', zero_division = 0)  
-    for c_idx, c in enumerate(CLASSES): metric_dict['F1_'+c] = f1_score(y_true=y_true[:,c_idx], y_pred=y_pred[:,c_idx], zero_division = 0)
-    return metric_dict
-    
-def get_metric_dict_bAcc(y_true, y_pred, metric_dict={}):
-    macro_average = 0
-    for c_idx, c in enumerate(CLASSES):
-        metric_dict['bAcc_'+c] = balanced_accuracy_score(y_true[:,c_idx], y_pred[:,c_idx])
-        macro_average += metric_dict['bAcc_'+c]
-    metric_dict['bAcc'] = macro_average / len(CLASSES)
-    return metric_dict
-
-def get_metric_dict_Acc(y_true, y_pred, metric_dict={}):
-    metric_dict['Acc'] = accuracy_score(y_true, y_pred, normalize=True, sample_weight=None)
-    for c_idx, c in enumerate(CLASSES): metric_dict['Acc_'+c] =  metric_dict['Acc_'+c] = accuracy_score(y_true[:,c_idx], y_pred[:,c_idx])
-    return metric_dict
-
-def get_metric_dict_SensSpec(y_true, y_pred, metric_dict={}):
-    for c_idx, c in enumerate(CLASSES):
-        metric_dict['Sensitivity/Recall_'+c] =  recall_score(y_true=y_true[:,c_idx], y_pred=y_pred[:,c_idx], zero_division = 0)
-        metric_dict['Specificity_'+c] =  recall_score(y_true=~(y_true[:,c_idx]>0), y_pred=~(y_pred[:,c_idx]>0), zero_division = 0)
-    return metric_dict
-
-def get_metric_dict_RecallPrec(y_true, y_pred, metric_dict={}):
-    for c_idx, c in enumerate(CLASSES):
-        metric_dict['Sensitivity/Recall_'+c] =  recall_score(y_true=y_true[:,c_idx], y_pred=y_pred[:,c_idx], zero_division = 0)
-        metric_dict['Precision_'+c] =  precision_score(y_true=y_true[:,c_idx], y_pred=y_pred[:,c_idx], zero_division = 0)
-    return metric_dict
-
-def get_metric_dict_Numbers(y_true, y_pred, metric_dict={}):
-    metric_dict['Num_samples'] = len(y_true)  
-    for c_idx, c in enumerate(CLASSES): metric_dict['Num_positive'+c] = int(y_true[:,c_idx].sum())
-    return metric_dict
-
 def full_evaluation(args, dataset, eval_str):
     pathlib.Path(args.output_dir).mkdir(parents=True, exist_ok=True)
     
@@ -168,7 +90,7 @@ def full_evaluation(args, dataset, eval_str):
             
             decoded_pred = completion.choices[0].message.content + '}'
             example = {}
-            example['y_true'] = old_to_new_label( ast.literal_eval(data['label']) if isinstance(data['label'], str) else data['label'] )
+            example['y_true'] = ast.literal_eval(data['label']) if isinstance(data['label'], str) else data['label'] 
             if decoded_pred[-1] != '}': decoded_pred += '}'
             example['y_pred'], example['failed_json_load'], example['num_missing_classes'] = get_label_from_decoded_str(decoded_pred)
             example['y_pred'] = new_to_old_label(example['y_pred'])
