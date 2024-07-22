@@ -17,66 +17,63 @@
 python_script="LLM_based_report_info_extraction.py"
 base_dir="$( cd -- "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )"
 base_data="${base_dir}/dataset"
+dataset_test="--dataset_path_test ${base_data}/data_test"
+#hf_access_token="XXXX" #enter token manually (not recommended) or login globally via hugginface_hub
 
 BITS=$1 
-TIPPS=$2 
-
-declare -a models=( "mistralai/Mixtral-8x7B-Instruct-v0.1" "LeoLM/leo-hessianai-70b-chat" "mistralai/Mistral-7B-Instruct-v0.2" "LeoLM/leo-hessianai-13b-chat" "LeoLM/leo-hessianai-7b-chat" "google/gemma-7b-it" "google/gemma-2b-it" ) 
-declare -a device_map=( "accelerate" "accelerate" "accelerate" "accelerate" "accelerate" "accelerate" "accelerate" "accelerate" "accelerate" "accelerate" "accelerate" ) #models that are to big for one gpu need to be run with auto and gradient checkpointing
-declare -a num_train_dataset=(  "14580" "7000" "3500" "2000" "1000" "500" "250" "100" "50" "25" "10" "1" "0") 
-declare -a max_steps=( "256" "128" "64" "64" "64" "32" "32" "8" "8" "4" "4" "1" "1"  ) 
-declare -a eval_steps=(  "8" "4" "2" "2" "2" "2" "1" "1" "1" "1" "1" "1" "1" ) 
-
-add_one_shot_report="False" 
+tipps="True"
 do_train="True"
+
+declare -a models=( "google/gemma-2-27b-it"  )
+declare -a device_map=(  "accelerate" ) #models that are to big for one gpu need to be run with auto and gradient checkpointing
+declare -a num_train_dataset=( "14580" "7000" "3500" "2000" "1000" "500" "250" "100" "50" "10" "1" "0" )  
+declare -a max_steps=( "256" "128"  "64" "64" "64" "32" "32"  "8" "4" "1" "1" )  
+declare -a eval_steps=( "8" "4" "2" "2" "2" "2" "1"  "1" "1" "1" "1" )  
+gradient_checkpointing="False"
+devices="0,1,2,3,4,5,6,7" 
+max_memory_MB="80000" #A100 80GP
+
+num_gpus=$(($(grep -o "," <<< "$devices" | wc -l) + 1))
+eval_last_model="True"
 eval_best_model="False"
 load_best_model_at_end="False"
-total_train_batch_size=480 
-trust_remote_code="False" #FlashAttention does work for mistral but not for LLama for 4 bit
+total_train_batch_size=512 
+trust_remote_code="True" 
+attn_implementation="eager" # for gemmme-2 eager, for phi-3 flash-attn-2
 if [ $BITS = "4bit" ]; then
-    echo "4 Bit training"
+    echo "4 Bit training"  
     bits="4"
-    declare -A per_device_train_batch_size=( ["mistralai/Mistral-7B-Instruct-v0.2"]="8" ["mistralai/Mixtral-8x7B-Instruct-v0.1"]="8" ["LeoLM/leo-hessianai-70b-chat"]="2"  ["LeoLM/leo-hessianai-13b-chat"]="8"  ["LeoLM/leo-hessianai-7b-chat"]="8" ["google/gemma-7b-it"]="8" ["google/gemma-2b-it"]="8" )
-    declare -A per_device_eval_batch_size=( ["mistralai/Mistral-7B-Instruct-v0.2"]="8" ["mistralai/Mixtral-8x7B-Instruct-v0.1"]="8" ["LeoLM/leo-hessianai-70b-chat"]="2"  ["LeoLM/leo-hessianai-13b-chat"]="8"  ["LeoLM/leo-hessianai-7b-chat"]="8" ["google/gemma-7b-it"]="8" ["google/gemma-2b-it"]="8")
-    declare -A per_device_generate_batch_size=( ["mistralai/Mistral-7B-Instruct-v0.2"]="8" ["mistralai/Mixtral-8x7B-Instruct-v0.1"]="8" ["LeoLM/leo-hessianai-70b-chat"]="1"  ["LeoLM/leo-hessianai-13b-chat"]="8"  ["LeoLM/leo-hessianai-7b-chat"]="8" ["google/gemma-7b-it"]="8" ["google/gemma-2b-it"]="8")
+    declare -A per_device_train_batch_size=(     ["google/gemma-2-27b-it"]="4" ["google/gemma-2-9b-it"]="8" ["aaditya/Llama3-OpenBioLLM-8B"]="8" ["aaditya/Llama3-OpenBioLLM-70B"]="2" ["microsoft/Phi-3-medium-4k-instruct"]="4" ["microsoft/Phi-3-mini-4k-instruct"]="16" ["epfl-llm/meditron-7b"]="8" ["epfl-llm/meditron-70b"]="2" ["meta-llama/Meta-Llama-3-8b-Instruct"]="8" ["meta-llama/Meta-Llama-3-70b-Instruct"]="2" ["mistralai/Mixtral-8x22B-Instruct-v0.1"]="2" ["lmsys/vicuna-13b-v1.5"]="4" ["BioMistral/BioMistral-7B-DARE"]="8" ["stanford-crfm/BioMedLM"]="8" ["mistralai/Mistral-7B-Instruct-v0.2"]="8" ["mistralai/Mixtral-8x7B-Instruct-v0.1"]="8" )
+    declare -A per_device_eval_batch_size=(      ["google/gemma-2-27b-it"]="4" ["google/gemma-2-9b-it"]="8" ["aaditya/Llama3-OpenBioLLM-8B"]="8" ["aaditya/Llama3-OpenBioLLM-70B"]="2" ["microsoft/Phi-3-medium-4k-instruct"]="4" ["microsoft/Phi-3-mini-4k-instruct"]="16" ["epfl-llm/meditron-7b"]="8" ["epfl-llm/meditron-70b"]="2" ["meta-llama/Meta-Llama-3-8b-Instruct"]="8"  ["meta-llama/Meta-Llama-3-70b-Instruct"]="2" ["mistralai/Mixtral-8x22B-Instruct-v0.1"]="2" ["lmsys/vicuna-13b-v1.5"]="4"  ["BioMistral/BioMistral-7B-DARE"]="8" ["stanford-crfm/BioMedLM"]="8" ["mistralai/Mistral-7B-Instruct-v0.2"]="8" ["mistralai/Mixtral-8x7B-Instruct-v0.1"]="8" )
+    declare -A per_device_generate_batch_size=(  ["google/gemma-2-27b-it"]="4" ["google/gemma-2-9b-it"]="8" ["aaditya/Llama3-OpenBioLLM-8B"]="8" ["aaditya/Llama3-OpenBioLLM-70B"]="2" ["microsoft/Phi-3-medium-4k-instruct"]="4" ["microsoft/Phi-3-mini-4k-instruct"]="16" ["epfl-llm/meditron-7b"]="8" ["epfl-llm/meditron-70b"]="2" ["meta-llama/Meta-Llama-3-8b-Instruct"]="8"  ["meta-llama/Meta-Llama-3-70b-Instruct"]="2" ["mistralai/Mixtral-8x22B-Instruct-v0.1"]="2" ["lmsys/vicuna-13b-v1.5"]="4" ["BioMistral/BioMistral-7B-DARE"]="8" ["stanford-crfm/BioMedLM"]="8" ["mistralai/Mistral-7B-Instruct-v0.2"]="8" ["mistralai/Mixtral-8x7B-Instruct-v0.1"]="8" )
 elif [ $BITS = "8bit" ]; then
-    echo "8 Bit training"
+    echo "Suitable batch sizes for 8 Bit training not defined yet"
     bits="8"
-    declare -A per_device_train_batch_size=( ["mistralai/Mistral-7B-Instruct-v0.2"]="4" ["mistralai/Mixtral-8x7B-Instruct-v0.1"]="4" ["LeoLM/leo-hessianai-70b-chat"]="2"  ["LeoLM/leo-hessianai-13b-chat"]="4"  ["LeoLM/leo-hessianai-7b-chat"]="4" ["google/gemma-7b-it"]="4" ["google/gemma-2b-it"]="4")
-    declare -A per_device_eval_batch_size=( ["mistralai/Mistral-7B-Instruct-v0.2"]="4" ["mistralai/Mixtral-8x7B-Instruct-v0.1"]="4" ["LeoLM/leo-hessianai-70b-chat"]="2"  ["LeoLM/leo-hessianai-13b-chat"]="4"  ["LeoLM/leo-hessianai-7b-chat"]="4" ["google/gemma-7b-it"]="4" ["google/gemma-2b-it"]="4")
-    declare -A per_device_generate_batch_size=( ["mistralai/Mistral-7B-Instruct-v0.2"]="4" ["mistralai/Mixtral-8x7B-Instruct-v0.1"]="4" ["LeoLM/leo-hessianai-70b-chat"]="2"  ["LeoLM/leo-hessianai-13b-chat"]="4"  ["LeoLM/leo-hessianai-7b-chat"]="4" ["google/gemma-7b-it"]="4" ["google/gemma-2b-it"]="4")
+    exit 1
 else
     echo "Wrong argument given for BITS (first arg)"
     exit 1 
-fi
-tipps="False"
-tipps_str="no_tipps"
-if [ $TIPPS = "tipps" ]; then
-    tipps="True"
-    tipps_str="with_tipps"
 fi
 
 for m in "${!models[@]}"; do
     for i in "${!num_train_dataset[@]}"; do 
 
-        launch="python3 "
-        gradient_checkpointing="False" #True
+        launch="CUDA_VISIBLE_DEVICES=${devices} python3 "
         if [[ "${device_map[$m]}" = "accelerate" ]]; then 
-            launch="NCCL_DEBUG=INFO accelerate launch --multi_gpu --num_processes 6 --num_machines 1 --mixed_precision no --dynamo_backend no "
+            launch="CUDA_VISIBLE_DEVICES=${devices} NCCL_DEBUG=INFO accelerate launch --multi_gpu --num_machines 1 --num_processes ${num_gpus} --mixed_precision no --dynamo_backend no " #TODO use accelerate config
         fi
         zero_shot="False"
         if [[ "${num_train_dataset[$i]}" = "0" ]]; then 
             zero_shot="True" 
-        fi
-        
+        fi 
         one_shot="False"
         if [[ "${num_train_dataset[$i]}" = "1" ]]; then 
             one_shot="True" 
         fi
 
-        base_output="${base_dir}/${BITS}/${tipps_str}/${models[$m]}"
-        dataset="${base_data}/LLM_data_train_${num_train_dataset[$i]}"
-        output="${base_output}/LLM_data_train_${num_train_dataset[$i]}"
+        base_output="${base_dir}/output/${BITS}bits/${models[$m]}"
+        dataset="${base_data}/data_train_${num_train_dataset[$i]}"
+        output="${base_output}/data_train_${num_train_dataset[$i]}"
         mkdir -p $output 
 
         echo "do_train:" "${do_train}"
@@ -86,14 +83,20 @@ for m in "${!models[@]}"; do
         echo "zero_shot:" "${zero_shot}"
         echo "one_shot:" "${one_shot}"
         echo "device_map:" "${device_map[$m]}"
+        echo "devices:" "${devices}"
+        echo "num_gpus:" "${num_gpus}"
+        
         echo $launch
-
+        
         eval "${launch}${python_script}" \
-            --eval_best_model "${eval_best_model}" \
             --do_train "${do_train}" \
+            --device "cuda:${devices}" \
+            --eval_best_model "${eval_best_model}" \
+            --eval_last_model "${eval_last_model}" \
             --bits "${bits}" \
             --model_path "${models[$m]}" \
             --device_map "${device_map[$m]}" \
+            --max_memory_MB "${max_memory_MB}" \
             --gradient_checkpointing "${gradient_checkpointing}" \
             --dataset_path "${dataset}" \
             ${dataset_test} \
@@ -112,13 +115,11 @@ for m in "${!models[@]}"; do
             --with_tipps "${tipps}" \
             --zero_shot "${zero_shot}" \
             --one_shot "${one_shot}" \
-            --add_one_shot_report "${add_one_shot_report}" \
             --disable_tqdm True \
             --full_eval_valid_set False \
             --trust_remote_code "${trust_remote_code}"  \
-            "${DEBUG_ARGS}" \
+            --attn_implementation "${attn_implementation}"  \
             &> ${output}/log_$(date '+%Y-%m-%d').txt 
-            
-            # --hf_access_token XXXXXXX\
     done
 done
+#--hf_access_token "${hf_access_token}" \
