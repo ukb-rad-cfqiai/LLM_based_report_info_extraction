@@ -25,7 +25,7 @@ tipps="True"
 do_train="True"
 
 declare -a models=( "google/gemma-2-27b-it"  )
-declare -a device_map=(  "accelerate" ) #models that are to big for one gpu need to be run with auto and gradient checkpointing
+declare -a device_map=( "ddp"  ) # ddp fsdp auto
 declare -a num_train_dataset=( "14580" "7000" "3500" "2000" "1000" "500" "250" "100" "50" "10" "1" "0" )  
 declare -a max_steps=( "256" "128"  "64" "64" "64" "32" "32"  "8" "4" "1" "1" )  
 declare -a eval_steps=( "8" "4" "2" "2" "2" "2" "1"  "1" "1" "1" "1" )  
@@ -39,7 +39,7 @@ eval_best_model="False"
 load_best_model_at_end="False"
 total_train_batch_size=512 
 trust_remote_code="True" 
-attn_implementation="eager" # for gemmme-2 eager, for phi-3 flash-attn-2
+attn_implementation="sdpa" # for gemmme-2 eager, for phi-3 flash_attention_2
 if [ $BITS = "4bit" ]; then
     echo "4 Bit training"  
     bits="4"
@@ -58,9 +58,9 @@ fi
 for m in "${!models[@]}"; do
     for i in "${!num_train_dataset[@]}"; do 
 
-        launch="CUDA_VISIBLE_DEVICES=${devices} python3 "
-        if [[ "${device_map[$m]}" = "accelerate" ]]; then 
-            launch="CUDA_VISIBLE_DEVICES=${devices} NCCL_DEBUG=INFO accelerate launch --multi_gpu --num_machines 1 --num_processes ${num_gpus} --mixed_precision no --dynamo_backend no " #TODO use accelerate config
+        launch="PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True CUDA_VISIBLE_DEVICES=${devices} python ${python_script} "
+        if [[ "${device_map[$m]}" != "auto" ]]; then  
+            launch="PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True CUDA_VISIBLE_DEVICES=${devices} accelerate launch --config_file ${base_dir}/accelerate_config_${device_map[$m]}.yaml --num_machines 1 --num_processes ${num_gpus} ${mixed_precision} ${python_script}"
         fi
         zero_shot="False"
         if [[ "${num_train_dataset[$i]}" = "0" ]]; then 
