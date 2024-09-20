@@ -57,6 +57,7 @@ def label_to_output_seq(label):
     return '{'+",\n".join([ f'"{c}": {POSITIVE_STR}' if x==1 else f'"{c}": {NEGATIVE_STR}' for x, c in zip(old_to_new_label(label), CLASSES_NEW) ])+'}'
 PRE_GIVEN_OUTPUT = f'"{CLASSES_NEW[0]}": '
 
+# TODO make prompt settings more professional e.g. by loading a prompt_config.json where you set all these things here 
 SYSTEM_PROMPT = f"Du bist ein hilfreicher AI assistant, welcher radiologische {MODALITY} {TEXT_DESCRIPTION} in JSON Format strukturiert."
 USER_PROMPT = f"""Am Ende dieser Anweisung gebe ich dir einen {TEXT_DESCRIPTION}, für welchen du die Beurteilungen und Erkenntnisse des Radiologen in folgendem JSON Format zusammenzufassen:
 {EXAMPLE_OUTPUT}  
@@ -88,7 +89,6 @@ from sklearn.metrics import (
     auc,
     classification_report)
 
-import nvidia_smi
 import pandas as pd
 from accelerate import Accelerator, PartialState, init_empty_weights, load_checkpoint_and_dispatch
 import os, argparse, torch, json, re,  pickle, ast, time
@@ -133,15 +133,16 @@ from trl import SFTTrainer, DataCollatorForCompletionOnlyLM, SFTConfig
 
 @dataclass
 class ModelArguments:
-    model_path: Optional[str] = field(default="meta-llama/Meta-Llama-3.1-405B-Instruct")
+    model_path: Optional[str] = field(default="meta-llama/Meta-Llama-3.1-8B-Instruct")
     adapters_pretrained_path: Optional[str] = field(default=None)
     hf_access_token: Optional[str] = field(default=None)
+    trust_remote_code: bool = field(default=False)
 
 @dataclass
 class DataArguments:
     max_train_samples: Optional[int] = field(default=None)
     max_eval_samples: Optional[int] = field(default=None)
-    dataset_path: str = field(default='/home/snowak/LLM_with_Ben/ukb_dataset/LLM_data_train_1000')
+    dataset_path: str = field(default=None)
     dataset_path_test: str = field(default=None)
     dataset_path_test2: str = field(default=None)
     dataset_path_predict: str = field(default=None)
@@ -153,8 +154,12 @@ class TrainingArguments(TrainingArguments):
     do_train: bool = field(default=True)
     do_eval: bool = field(default=True)
     max_steps: int = field(default=256)
-    
+    total_train_batch_size: int = field(default=512)
+    eval_accumulation_steps: int = field(default=1)
+
     # Model configuration
+    zero_shot: bool = field(default=False)
+    one_shot: bool = field(default=False)
     use_lora: bool = field(default=True)
     lora_r: int = field(default=8)
     lora_alpha: float = field(default=16)
@@ -195,7 +200,7 @@ class TrainingArguments(TrainingArguments):
     remove_unused_columns: bool = field(default=False)
     
     # Hardware utilization
-    max_memory_MB: int = field(default=75000)
+    max_memory_MB: int = field(default=80000)
     dataloader_num_workers: int = field(default=4)
     dataloader_pin_memory: bool = field(default=True)
     
@@ -212,22 +217,17 @@ class TrainingArguments(TrainingArguments):
     full_eval_valid_set: bool = field(default=True)
     eval_best_model: bool = field(default=True)
     eval_last_model: bool = field(default=True)
-    
-    # Miscellaneous
+
+    # Inference settings
     save_full_prompts_with_output: bool = field(default=False)
     compute_classification_metrics_after_predicting: bool = field(default=False)
     overwrite_already_done_predicitons: bool = field(default=False)
+    per_device_generate_batch_size: int = field(default=8)
+  
+    # Miscellaneous
     report_to: str = field(default=None)
     with_tipps: bool = field(default=False)
-    zero_shot: bool = field(default=False)
-    one_shot: bool = field(default=False)
-    add_do_fine_tune: bool = field(default=False)
-    get_individual_thresh_perClass: bool = field(default=False)
-    total_train_batch_size: int = field(default=480)
-    per_device_generate_batch_size: int = field(default=8)
-    trust_remote_code: bool = field(default=False)
     use_cpu: bool = field(default=False)
-    eval_accumulation_steps: int = field(default=1)
     disable_tqdm: bool = field(default=False)
     
 @dataclass
