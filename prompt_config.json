@@ -1,0 +1,17 @@
+{
+  "_comment": "This json defines the classes and prompts to be used for training the LLMs. If you want to use args.one_shot=True fill out EXAMPLE_REPORT and EXAMPLE_REPORT_LABEL. If you want to pre give the start of the output json (faster) then change ZVK with your first class else remove PRE_GIVEN_OUTPUT string. PRE_REPORT_PROMPT defines what comes before the reports to be structured.",
+  "CLASSES": [
+    "ZVK",
+    "ZVK hat fehlerhafte Projektion/Lage",
+    "Erguss",
+    "Stauung",
+    "Infiltrate",
+    "Pneumothorax"
+  ],
+  "SYSTEM_PROMPT": "Du bist ein hilfreicher AI assistant, welcher radiologische Röntgen-Thorax Berichte in JSON Format strukturiert.",
+  "USER_PROMPT": "Am Ende dieser Anweisung gebe ich dir einen Bericht, für welchen du die Beurteilungen und Erkenntnisse des Radiologen in folgendem JSON Format zusammenzufassen:\n{\n  \"ZVK\": \"0\",\n  \"ZVK hat fehlerhafte Projektion/Lage\": \"0\",\n  \"Erguss\": \"0\",\n  \"Stauung\": \"0\",\n  \"Infiltrate\": \"0\",\n  \"Pneumothorax\": \"0\"\n}  \nDu gibts immer dieses vollständige JSON Format mit allen 6 Klassen an und ersetzt 0 durch 1, wenn folgendes im Bericht zu finden ist:\nBei \"ZVK\" ersetzt du 0 durch 1 im JSON Format, wenn der Patient einen zentralen Venenkatheter (ZVK) hat. Andere Fremdmaterialen, wie z.B Shaldon-Katheter oder Magensonden, sind für dich nicht relevant.\nBei \"ZVK hat fehlerhafte Projektion/Lage\" ersetzt du 0 durch 1 im JSON Format, wenn der im Bericht beschriebene zentrale Venenkatheter (ZVK) eine fehlerhafte Postion auffweist.\nBei den Klassen \"Erguss\", \"Stauung\", \"Infiltrate\" und \"Pneumothorax\" ersetzt du 0 durch 1, wenn der Radiologe im Bericht vermerkt hat, dass er die jeweilige Pathologie im Bild erkannt hat, unabhängig davon, ob sie neu ist oder auch bereits bei einer früheren Untersuchung bestand (Beispiel: Differentialdiagnose (DD) pneumonische Infiltrate). Beschreibt der Radiologe, dass er die betreffende Pathologie auf dem Bild nicht sieht (Beispiel: \"Kein Nachweis von umschriebenen pneumonischen Infiltraten\") oder wenn er Unsicherheiten beschreibt (Beispiel: \"Infiltrate können nicht mit Sicherheit ausgeschlossen werden / kein sicherer Nachweis\"), dann lasse 0 im JSON für die jeweilige Pathologie stehen. Hinweise: Bei Beschreibungen eines zentralen Venenkatheters (ZVK) mit \"Projektion auf die obere Hohlvene\", \"Projektion auf Vena Cava Superior (VCS)\" oder \"Projektion auf den cavo-atrialen Übergang\" liegt eine regelrechte Lage des ZVK vor und du lässt die \"0\" bei \"ZVK hat fehlerhafte Projektion/Lage\" stehen. Du ersetzt \"0\" durch \"1\" bei \"ZVK hat fehlerhafte Projektion/Lage\" bei jeglichen Beschreibungen von Projektionen auf andere Anatomien, wie z.B. bei \"Projektion auf den rechten Vorhof\" oder bei der Beschreibung eines umgeschlagenen ZVK, denn dann liegt eine fehlerhafte Projektion/Lage vor.",
+  "EXAMPLE_REPORT": "",
+  "EXAMPLE_REPORT_LABEL": [0, 0, 0, 0, 0, 0],
+  "PRE_REPORT_PROMPT": "Dies ist der Bericht den du jetzt klassifizieren sollst: "
+  "PRE_GIVEN_OUTPUT": "{\n  \"ZVK\": "
+} 
