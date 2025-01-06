@@ -12,71 +12,7 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 
-
-MODALITY = "Röntgen-Thorax"
-TEXT_DESCRIPTION = "Bericht"
-
-CLASSES   = [   "Lage_ZVK_ok",
-                "Lage_ZVK_Fehllage",
-                "Befund_Pleuraerguss",
-                "Befund_Stauung",
-                "Befund_Infiltrat",
-                "Befund_Pneumothorax" ]
-
-CLASSES_NEW = [ "ZVK",
-                "ZVK hat fehlerhafte Projektion/Lage",
-                "Erguss",
-                "Stauung",
-                "Infiltrate",
-                "Pneumothorax" ]
-
-def new_to_old_label(new_label):
-    old_label = [0 for _ in new_label]
-    if new_label[0]==1 and new_label[1]==0: old_label[0]=1 
-    old_label[1] = new_label[1] 
-    old_label[2] = new_label[2]
-    old_label[3] = new_label[3]
-    old_label[4] = new_label[4]
-    old_label[5] = new_label[5]
-    return old_label
-#def new_to_old_label(new_label): return new_label
-
-def old_to_new_label(old_label):
-    new_label = [0 for _ in old_label]
-    if old_label[0]==1 or old_label[1]==1: new_label[0]=1 
-    new_label[1] = old_label[1] 
-    new_label[2] = old_label[2]
-    new_label[3] = old_label[3]
-    new_label[4] = old_label[4]
-    new_label[5] = old_label[5] 
-    return new_label
-#def old_to_new_label(old_label): return old_label
-
-POSITIVE_STR = "1"; NEGATIVE_STR = "0"; PLACEHOLDER_STR = "0"
-def label_to_output_seq(label): 
-    return '{'+",\n".join([ f'"{c}": {POSITIVE_STR}' if x==1 else f'"{c}": {NEGATIVE_STR}' for x, c in zip(old_to_new_label(label), CLASSES_NEW) ])+'}'
-PRE_GIVEN_OUTPUT = f'"{CLASSES_NEW[0]}": '
-
-# TODO make prompt settings more professional e.g. by loading a prompt_config.json where you set all these things here 
-SYSTEM_PROMPT = f"Du bist ein hilfreicher AI assistant, welcher radiologische {MODALITY} {TEXT_DESCRIPTION} in JSON Format strukturiert."
-USER_PROMPT = f"""Am Ende dieser Anweisung gebe ich dir einen {TEXT_DESCRIPTION}, für welchen du die Beurteilungen und Erkenntnisse des Radiologen in folgendem JSON Format zusammenzufassen:
-{EXAMPLE_OUTPUT}  
-Du gibts immer dieses vollständige JSON Format mit allen {len(CLASSES_NEW)} Klassen an und ersetzt {PLACEHOLDER_STR} durch {POSITIVE_STR}, wenn folgendes im {TEXT_DESCRIPTION} zu finden ist:
-Bei \"{CLASSES_NEW[0]}\" ersetzt du {PLACEHOLDER_STR} durch {POSITIVE_STR} im JSON Format, wenn der Patient einen zentralen Venenkatheter (ZVK) hat. Andere Fremdmaterialen, wie z.B Shaldon-Katheter oder Magensonden, sind für dich nicht relevant.
-Bei \"{CLASSES_NEW[1]}\" ersetzt du {PLACEHOLDER_STR} durch {POSITIVE_STR} im JSON Format, wenn der im {TEXT_DESCRIPTION} beschriebene zentrale Venenkatheter (ZVK) eine fehlerhafte Postion auffweist.
-Bei den Klassen "Erguss", "Stauung", "Infiltrate" und "Pneumothorax" ersetzt du {PLACEHOLDER_STR} durch {POSITIVE_STR}, wenn der Radiologe im Bericht vermerkt hat, dass er die jeweilige Pathologie im Bild erkannt hat, unabhängig davon, ob sie neu ist oder auch bereits bei einer früheren Untersuchung bestand (Beispiel: Differentialdiagnose (DD) pneumonische Infiltrate). Beschreibt der Radiologe, dass er die betreffende Pathologie auf dem Bild nicht sieht (Beispiel: "Kein Nachweis von umschriebenen pneumonischen Infiltraten") oder wenn er Unsicherheiten beschreibt (Beispiel: "Infiltrate können nicht mit Sicherheit ausgeschlossen werden / kein sicherer Nachweis"), dann lasse {PLACEHOLDER_STR} im JSON für die jeweilige Pathologie stehen."""
-TIPPS = f"""Hinweise: Bei Beschreibungen eines zentralen Venenkatheters (ZVK) mit "Projektion auf die obere Hohlvene", "Projektion auf Vena Cava Superior (VCS)" oder "Projektion auf den cavo-atrialen Übergang" liegt eine regelrechte Lage des ZVK vor und du lässt die {NEGATIVE_STR} bei \"{CLASSES_NEW[1]}\" stehen. Du ersetzt {PLACEHOLDER_STR} durch {POSITIVE_STR} bei \"{CLASSES_NEW[1]}\" bei jeglichen Beschreibungen von Projektionen auf andere Anatomien, wie z.B. bei "Projektion auf den rechten Vorhof" oder bei der Beschreibung eines umgeschlagenen ZVK, denn dann liegt eine fehlerhafte Projektion/Lage vor."""
-
-EXAMPLE_REPORT = "PUT YOUR EXAMPLE REPORT HERE"
-EXAMPLE_LABEL = "PUT THE GT LABEL OF THE EXAMPLE HERE AS LISTS E.G. [0, 1, 1, 1, 1, 0]"
-ONE_SHOT_REPORT = f"Dies ist ein Beispiel für eine {TEXT_DESCRIPTION}: {EXAMPLE_REPORT}"
-ONE_SHOT_OUTPUT = label_to_output_seq(EXAMPLE_LABEL)  
-ONE_SHOT_EXAMPLE = f"{ONE_SHOT_REPORT}\nDies ist für den Beispiel {TEXT_DESCRIPTION} ein Korrekt ausgefülltes JSON: {ONE_SHOT_OUTPUT}"
-PRE_REPORT_PROMPT = f"Dies ist der {TEXT_DESCRIPTION} den du jetzt klassifizieren sollst: "
-
-
 from utils import get_label_from_decoded_str, get_metric_dict
-
 from sklearn.metrics import (
     accuracy_score,
     balanced_accuracy_score,
@@ -88,7 +24,6 @@ from sklearn.metrics import (
     roc_curve,
     auc,
     classification_report)
-
 import pandas as pd
 from accelerate import Accelerator, PartialState, init_empty_weights, load_checkpoint_and_dispatch
 import os, argparse, torch, json, re,  pickle, ast, time
@@ -226,7 +161,6 @@ class TrainingArguments(TrainingArguments):
   
     # Miscellaneous
     report_to: str = field(default=None)
-    with_tipps: bool = field(default=False)
     use_cpu: bool = field(default=False)
     disable_tqdm: bool = field(default=False)
     
@@ -331,6 +265,16 @@ def get_tokenizer(args):
     tokenizer.pad_token = tokenizer.eos_token
     return  tokenizer
 
+# Global dictionary to hold the configuration
+prompt_config = {}
+def load_prompt_config():
+    global prompt_config  # Declare prompt_config as global
+    with open('prompt_config.json', 'r', encoding='utf-8') as file:
+        prompt_config = json.load(file)
+
+def label_to_output_seq(label):
+    return json.dumps({cls: lbl for cls, lbl in zip(prompt_config['CLASSES'], label)}, indent=2, ensure_ascii=False)
+
 class Dummy_Accelerator(object):
     def __init__(self, is_main_process=True, num_processes=1):
         self.is_main_process = True
@@ -345,7 +289,7 @@ class Dummy_Trainer(object):
         self.tokenizer = tokenizer
         self.accelerator = accelerator
 
-def predict_dataset(args, trainer, tokenizer, dataset, eval_str):
+def predict_dataset(args, trainer, tokenizer, dataset, classes, eval_str):
 
     trainer.accelerator.print(f'{eval_str}: Starting prediciton function...')
     trainer.compute_metrics = None
@@ -469,7 +413,6 @@ def predict_dataset(args, trainer, tokenizer, dataset, eval_str):
                         decoded_pred = decoded_pred[decoded_pred.rfind('{'):]
                         if decoded_pred[-1] != '}': decoded_pred += '}'
                         example['y_pred'], example['failed_json_load'], example['num_missing_classes'] = get_label_from_decoded_str(decoded_pred, example['y_true'])
-                        example['y_pred'] = new_to_old_label(example['y_pred'])
                         example['prediction'] = decoded_pred
                         if args.save_full_prompts_with_output: # this is for debugging to see what the actual model gets for generate and what it does with it
                             example['raw_input'] = raw_decoded_input_id
@@ -508,11 +451,11 @@ def predict_dataset(args, trainer, tokenizer, dataset, eval_str):
         for example in all_examples:
             y_pred.append( ast.literal_eval(example['y_pred']) if isinstance(example['y_pred'], str) else example['y_pred']  )
             y_true.append( ast.literal_eval(example['y_true']) if isinstance(example['y_true'], str) else example['y_true']  )
-        report = classification_report(np.array(y_true), np.array(y_pred), target_names=CLASSES, digits=3)
+        report = classification_report(np.array(y_true), np.array(y_pred), target_names=classes, digits=3)
         metric_dict = get_metric_dict(np.array(y_true), np.array(y_pred))
         with open(join(args.output_dir, f'classificationReport_{eval_str}.txt'),'w', encoding='utf-8' ) as file: print(report, file=file) 
         with open(join(args.output_dir, f'results_{eval_str}.json'), 'w', encoding='utf-8') as file:json.dump(metric_dict, file, indent=2)
-        with open(join(args.output_dir, f'results_{eval_str}.pkl'), 'wb') as file: pickle.dump([metric_dict, report, dataset['StudyAnonID'], y_true, y_pred, CLASSES], file)
+        with open(join(args.output_dir, f'results_{eval_str}.pkl'), 'wb') as file: pickle.dump([metric_dict, report, dataset['StudyAnonID'], y_true, y_pred, classes], file)
     trainer.accelerator.wait_for_everyone()
 
 def main():
@@ -554,61 +497,43 @@ def main():
     set_seed(args.seed)
     os.makedirs(training_args.output_dir, exist_ok=True)
 
-    chat_template = None
+    # Load chat templates from JSON file and find the appropriate template based on the model path (case-insensitive)
+    with open('chat_templates.json', 'r') as f: chat_templates = json.load(f)
     args.use_fast_tokenizer = True
-    if np.any([x in args.model_path for x in ['Llama-2', 'Mixtral-', 'Mistral-']]): 
-        args.response_template = f'[/INST]'
-    elif np.any([x in args.model_path for x in ['phi-3', 'Phi-3']]): 
-        args.response_template = f'<|assistant|>'
-    elif 'meditron' in args.model_path:  
-        chat_template = "{% if messages[0]['role'] == 'system' %}{% set loop_messages = messages[1:] %}{% set system_message = messages[0]['content'] %}{% else %}{% set loop_messages = messages %}{% set system_message = false %}{% endif %}{% for message in loop_messages %}{% if (message['role'] == 'user') != (loop.index0 % 2 == 0) %}{{ raise_exception('Conversation roles must alternate user/assistant/user/assistant/...') }}{% endif %}{% if loop.index0 == 0 and system_message != false %}{% set content = '<<SYS>>\\n' + system_message + '\\n<</SYS>>\\n\\n' + message['content'] %}{% else %}{% set content = message['content'] %}{% endif %}{% if message['role'] == 'user' %}{{ bos_token + '[INST] ' + content.strip() + ' [/INST]' }}{% elif message['role'] == 'assistant' %}{{ ' '  + content.strip() + ' ' + eos_token }}{% endif %}{% endfor %}"
-        args.response_template = f'[/INST]'
-    elif 'vicuna-' in args.model_path:  
-        #https://huggingface.co/lmsys/vicuna-13b-v1.5-16k/discussions/1
-        chat_template = "{% for message in messages %}{% if message['role'] == 'user' %}{{ 'USER: ' + message['content'] + '\n '}}{% elif message['role'] == 'system' %}{{ 'SYSTEM: '  + message['content'] + '\n ' }}{% elif message['role'] == 'assistant' %}{{ 'ASSISTANT: ' + message['content'] + ' ' + eos_token }}{% endif %}{% endfor %}"
-        args.use_fast_tokenizer = False
-        args.response_template = 'ASSISTANT:' 
-    elif 'BioMedLM' in args.model_path:  
-        # https://crfm.stanford.edu/2022/12/15/biomedlm.html
-        #<Context token> Text of context … <Question token> Text of question <Answer token> 
-        chat_template = "{% for message in messages %}{% if message['role'] == 'user' %}{{ '<Context token> ' + message['content'] + '\n ' }}{% elif message['role'] == 'system' %}{{ '<System token> '  + message['content'] + '\n '}}{% elif message['role'] == 'assistant' %}{{ ' <Answer token> ' + message['content'] + ' ' + eos_token }}{% endif %}{% endfor %}"
-        args.response_template = '<Answer token>' 
-    elif 'Llama-3' in args.model_path or 'Llama3' in args.model_path: 
-        #https://huggingface.co/meta-llama/Meta-Llama-3-8B-Instruct/discussions/14
-        args.response_template = '<|start_header_id|>assistant<|end_header_id|>'
-    elif 'gemma' in args.model_path: 
-        args.response_template = '<start_of_turn>model'
-    elif 'dbrx' in args.model_path : 
-        args.response_template = '<|im_start|> assistant'
-    elif 'c4ai-command-r' in args.model_path : 
-        args.response_template = '<|START_OF_TURN_TOKEN|><|CHATBOT_TOKEN|>'
-    elif 'hessianai' in args.model_path: 
-        args.response_template = '<|im_start|>assistant'     
-    else: assert False, f'Response template for {args.model_path} not implemented'
+    chat_template = "default"
+    for model_substring, template_info in chat_templates.items():
+        # Convert both model_substring and args.model_path to lowercase for case-insensitive comparison
+        if model_substring.lower() in args.model_path.lower():
+            args.response_template = template_info.get("response_template", "")
+            if "chat_template" in template_info: chat_template = template_info["chat_template"]
+            if "use_fast_tokenizer" in template_info: args.use_fast_tokenizer = template_info["use_fast_tokenizer"]
+            break
+    else:
+        assert False, f'Response template for {args.model_path} not implemented'
 
     tokenizer = get_tokenizer(args)
     trainer = Dummy_Trainer(tokenizer=tokenizer)
-    if chat_template is not None: tokenizer.chat_template = chat_template
-    
+    if chat_template != "default":
+        tokenizer.chat_template = chat_template
+
     def load_dataset(args, dataset_path, tokenizer):
 
-        one_shot_example = f"\n{ONE_SHOT_EXAMPLE}" if args.one_shot else ""
-        tipp = f"\n{TIPPS}" if args.with_tipps else ""
+        one_shot_example = f"\nDies ist ein Beispiel für eine Bericht Strukturierung: {prompt_config['EXAMPLE_REPORT']}\n{label_to_output_seq(prompt_config['EXAMPLE_REPORT_LABEL'])}"" if args.one_shot else ""
         def create_prompts(example):
             messages = [
-                {'role': 'user', 'content': f'{SYSTEM_PROMPT}{USER_PROMPT}{tipp}{one_shot_example}{PRE_REPORT_PROMPT}{example["report"]} '},
-                {'role': 'assistant', 'content': f' {label_to_output_seq(example["label"])}'} ]
+                {'role': 'user', 'content': f'{{prompt_config['SYSTEM_PROMPT']}{{prompt_config['USER_PROMPT']}{one_shot_example}{{prompt_config['PRE_REPORT_PROMPT']}{example["report"]}\n'},
+                {'role': 'assistant', 'content': f'{label_to_output_seq(example["label"])}'} ]
             text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=False)
 
-            if PRE_GIVEN_OUTPUT is None:
+            if prompt_config['GIVE_OUTPUT_START']:
+                pre_given_output = f'{{\n  "{prompt_config['CLASSES'][0]}": '
+                return {'input': text[:text.rfind(pre_given_output)+len(pre_given_output)],
+                        'output': label_to_output_seq(example["label"]).replace(pre_given_output, ""),
+                        'text': text} 
+            else:
                 return {'input': text[:text.rfind(args.response_template)+len(args.response_template)],
                         'output': label_to_output_seq(example["label"]),
                         'text': text} 
-            else:
-                return {'input': text[:text.rfind(PRE_GIVEN_OUTPUT)+len(PRE_GIVEN_OUTPUT)],
-                        'output': label_to_output_seq(example["label"]).replace(PRE_GIVEN_OUTPUT, ""),
-                        'text': text} 
-
         dataset = load_from_disk(dataset_path)
         dataset = dataset.map(create_prompts)
 
@@ -787,16 +712,16 @@ def main():
             pass # for readability 
 
         trainer.accelerator.print("Predicting with best model ... loading adapters_pretrained_path={folders_in_output[0]}") 
-        if args.do_train and args.full_eval_valid_set: predict_dataset(args, trainer, tokenizer, dataset['eval'], eval_str = 'valid_best_model')
+        if args.do_train and args.full_eval_valid_set: predict_dataset(args, trainer, tokenizer, dataset['eval'], prompt_config['CLASSES'], 'valid_best_model')
         if args.dataset_path_test is not None: 
             dataset_test  = load_dataset(args, args.dataset_path_test, tokenizer)
-            predict_dataset(args, trainer, tokenizer, dataset_test['eval'],  eval_str = 'test_best_model')
+            predict_dataset(args, trainer, tokenizer, dataset_test['eval'], prompt_config['CLASSES'], 'test_best_model')
         if args.dataset_path_test2 is not None: 
             dataset_test2 = load_dataset(args, args.dataset_path_test2, tokenizer)
-            predict_dataset(args, trainer, tokenizer, dataset_test2['eval'], eval_str = 'test2_best_model')
+            predict_dataset(args, trainer, tokenizer, dataset_test2['eval'], prompt_config['CLASSES'], 'test2_best_model')
         if args.dataset_path_predict is not None: 
             dataset_predict = load_dataset(args, args.dataset_path_predict, tokenizer)
-            predict_dataset(args, trainer, tokenizer, dataset_predict['eval'],  eval_str = 'predict_best_model')
+            predict_dataset(args, trainer, tokenizer, dataset_predict['eval'], prompt_config['CLASSES'], 'predict_best_model')
 
     #Eval LAST MODEL after train  
     if args.eval_last_model and not (args.zero_shot or args.one_shot):  
@@ -805,16 +730,16 @@ def main():
             trainer.model = set_special_tokens_after_model_instantiate(args, trainer.model, tokenizer)
 
         if args.do_train and args.full_eval_valid_set:
-            predict_dataset(args, trainer, tokenizer, dataset['eval'], eval_str = 'valid_last_model')
+            predict_dataset(args, trainer, tokenizer, dataset['eval'], prompt_config['CLASSES'], 'valid_last_model')
         if args.dataset_path_test is not None: 
             dataset_test  = load_dataset(args, args.dataset_path_test, tokenizer)
-            predict_dataset(args, trainer, tokenizer, dataset_test['eval'], eval_str = 'test_last_model')
+            predict_dataset(args, trainer, tokenizer, dataset_test['eval'], prompt_config['CLASSES'], 'test_last_model')
         if args.dataset_path_test2 is not None: 
             dataset_test2 = load_dataset(args, args.dataset_path_test2, tokenizer)
-            predict_dataset(args, trainer, tokenizer, dataset_test2['eval'], eval_str = 'test2_last_model')
+            predict_dataset(args, trainer, tokenizer, dataset_test2['eval'], prompt_config['CLASSES'], 'test2_last_model')
         if args.dataset_path_predict is not None: 
             dataset_predict = load_dataset(args, args.dataset_path_predict, tokenizer)
-            predict_dataset(args, trainer, tokenizer, dataset_predict['eval'], eval_str = 'predict_last_model')
+            predict_dataset(args, trainer, tokenizer, dataset_predict['eval'], prompt_config['CLASSES'], 'predict_last_model')
  
     trainer.accelerator.wait_for_everyone()
     del trainer
