@@ -1,0 +1,49 @@
+{
+    "Llama-2": {
+        "response_template": "[/INST]"
+    },
+    "Llama-3": {
+        "response_template": "<|start_header_id|>assistant<|end_header_id|>"
+    },
+    "Mixtral-": {
+        "response_template": "[/INST]"
+    },
+    "Mistral-": {
+        "response_template": "[/INST]"
+    },
+    "Phi-3": {
+        "response_template": "<|assistant|>"
+    },
+    "gemma-2": {
+        "response_template": "<start_of_turn>model"
+    },
+    "meditron": {
+        "response_template": "[/INST]",
+        "chat_template": "{% if messages[0]['role'] == 'system' %}{% set loop_messages = messages[1:] %}{% set system_message = messages[0]['content'] %}{% else %}{% set loop_messages = messages %}{% set system_message = false %}{% endif %}{% for message in loop_messages %}{% if (message['role'] == 'user') != (loop.index0 % 2 == 0) %}{{ raise_exception('Conversation roles must alternate user/assistant/user/assistant/...') }}{% endif %}{% if loop.index0 == 0 and system_message != false %}{% set content = '<<SYS>>\\n' + system_message + '\\n<</SYS>>\\n\\n' + message['content'] %}{% else %}{% set content = message['content'] %}{% endif %}{% if message['role'] == 'user' %}{{ bos_token + '[INST] ' + content.strip() + ' [/INST]' }}{% elif message['role'] == 'assistant' %}{{ ' '  + content.strip() + ' ' + eos_token }}{% endif %}{% endfor %}"
+    },
+    "vicuna-": {
+        "response_template": "ASSISTANT:",
+        "chat_template": "{% for message in messages %}{% if message['role'] == 'user' %}{{ 'USER: ' + message['content'] + '\n '}}{% elif message['role'] == 'system' %}{{ 'SYSTEM: '  + message['content'] + '\n ' }}{% elif message['role'] == 'assistant' %}{{ 'ASSISTANT: ' + message['content'] + ' ' + eos_token }}{% endif %}{% endfor %}",
+        "use_fast_tokenizer": false,
+        "_comment": "https://huggingface.co/lmsys/vicuna-13b-v1.5-16k/discussions/1"
+    },
+    "BioMedLM": {
+        "response_template": "<Answer token>",
+        "chat_template": "{% for message in messages %}{% if message['role'] == 'user' %}{{ '<Context token> ' + message['content'] + '\n ' }}{% elif message['role'] == 'system' %}{{ '<System token> '  + message['content'] + '\n '}}{% elif message['role'] == 'assistant' %}{{ ' <Answer token> ' + message['content'] + ' ' + eos_token }}{% endif %}{% endfor %}",
+        "_comment": "https://crfm.stanford.edu/2022/12/15/biomedlm.html"
+    },
+    "dbrx": {
+        "response_template": "<|im_start|> assistant"
+    },
+    "c4ai-command-r": {
+        "response_template": "<|START_OF_TURN_TOKEN|><|CHATBOT_TOKEN|>"
+    },
+    "hessianai": {
+        "response_template": "<|im_start|>assistant"
+    },
+    "Teuken": {
+        "response_template": "Assistant:",
+        "chat_template": "{%- for message in messages %}\n{%- if (message['role']|lower == 'user') != (loop.index0 % 2 == 0) %}\n{{- raise_exception('Roles must alternate User/Assistant/User/Assistant/...') }}\n{%- endif %}\n{%-if message['role']|lower == 'user' %}\n{{- message['role']|capitalize + ': ' + message['content'] + '\\n' }}\n{%- elif message['role']|lower == 'assistant' %}\n{{- message['role']|capitalize + ': ' + message['content'] + eos_token + '\\n' }}\n{%- else %}\n{{- raise_exception('Only user and assistant roles are supported!') }}\n {%- endif %}\n{%- endfor %}{%-if add_generation_prompt %}\n{{- 'Assistant: '}}\n{%- endif %}\n",
+        "_comment": "https://huggingface.co/openGPT-X/Teuken-7B-instruct-research-v0.4/blob/main/gptx_tokenizer.py"
+    }
+}
