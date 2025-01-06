@@ -1,5 +1,5 @@
 {
-  "_comment": "This json defines the classes and prompts to be used for training the LLMs. If you want to use args.one_shot=True fill out EXAMPLE_REPORT and EXAMPLE_REPORT_LABEL. If you want to pre give the start of the output json (faster) then change ZVK with your first class else remove PRE_GIVEN_OUTPUT string. PRE_REPORT_PROMPT defines what comes before the reports to be structured.",
+  "_comment": "This json defines the classes and prompts to be used for training the LLMs. If you want to use args.one_shot=True fill out EXAMPLE_REPORT and EXAMPLE_REPORT_LABEL. If GIVE_OUTPUT_START==1 then the start of the json is given for the model (e.g. {\n  \"ZVK\": ) which is slightly faster. PRE_REPORT_PROMPT defines what comes before the reports to be structured.",
   "CLASSES": [
     "ZVK",
     "ZVK hat fehlerhafte Projektion/Lage",
@@ -13,5 +13,5 @@
   "EXAMPLE_REPORT": "",
   "EXAMPLE_REPORT_LABEL": [0, 0, 0, 0, 0, 0],
   "PRE_REPORT_PROMPT": "Dies ist der Bericht den du jetzt klassifizieren sollst: "
-  "PRE_GIVEN_OUTPUT": "{\n  \"ZVK\": "
+  "GIVE_OUTPUT_START": 1
 } 
