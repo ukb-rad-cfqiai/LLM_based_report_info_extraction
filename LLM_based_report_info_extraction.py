@@ -115,7 +115,7 @@ class TrainingArguments(TrainingArguments):
     group_by_length: bool = field(default=True)
     
     # Evaluation and logging
-    evaluation_strategy: str = field(default='steps')
+    eval_strategy: str = field(default='steps')
     eval_steps: int = field(default=10)
     logging_steps: int = field(default=10)
     save_steps: int = field(default=10)
