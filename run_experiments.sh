@@ -18,20 +18,22 @@ python_script="LLM_based_report_info_extraction.py"
 base_dir="$( cd -- "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )"
 base_data="${base_dir}/dataset"
 dataset_test="--dataset_path_test ${base_data}/data_test"
-#hf_access_token="XXXX" #enter token manually (not recommended) or login globally via hugginface_hub
+#hf_access_token="XXXX" #enter token manually (not recommended) or login globally via hugginface_cli
 
 BITS=$1 
-tipps="True"
 do_train="True"
+lr="0.0001"
 
-declare -a models=( "google/gemma-2-27b-it"  )
-declare -a device_map=( "ddp"  ) # ddp fsdp auto
+declare -a models=( "google/gemma-2-27b-it" "microsoft/Phi-3.5-mini-instruct"  )
+declare -a device_map=( "ddp" "ddp"  ) # ddp fsdp auto
+declare -a attn_implementation=( "eager" "flash_attention_2" )
+
 declare -a num_train_dataset=( "14580" "7000" "3500" "2000" "1000" "500" "250" "100" "50" "10" "1" "0" )  
 declare -a max_steps=( "256" "128"  "64" "64" "64" "32" "32"  "8" "4" "1" "1" )  
 declare -a eval_steps=( "8" "4" "2" "2" "2" "2" "1"  "1" "1" "1" "1" )  
 gradient_checkpointing="False"
 devices="0,1,2,3,4,5,6,7" 
-max_memory_MB="80000" #A100 80GP
+max_memory_MB="80000" #A100 80GB
 
 num_gpus=$(($(grep -o "," <<< "$devices" | wc -l) + 1))
 eval_last_model="True"
@@ -39,7 +41,6 @@ eval_best_model="False"
 load_best_model_at_end="False"
 total_train_batch_size=512 
 trust_remote_code="True" 
-attn_implementation="sdpa" # for gemmme-2 eager, for phi-3 flash_attention_2
 if [ $BITS = "4bit" ]; then
     echo "4 Bit training"  
     bits="4"
@@ -111,15 +112,14 @@ for m in "${!models[@]}"; do
             --per_device_generate_batch_size "${per_device_generate_batch_size[${models[$m]}]}" \
             --bf16 True \
             --lr_scheduler_type constant \
-            --learning_rate 0.0001 \
-            --with_tipps "${tipps}" \
+            --learning_rate "${lr}" \
             --zero_shot "${zero_shot}" \
             --one_shot "${one_shot}" \
             --disable_tqdm True \
             --full_eval_valid_set False \
             --trust_remote_code "${trust_remote_code}"  \
-            --attn_implementation "${attn_implementation}"  \
+            --attn_implementation "${attn_implementation[$m]}" \
             &> ${output}/log_$(date '+%Y-%m-%d').txt 
     done
 done
-#--hf_access_token "${hf_access_token}" \
+#--hf_access_token "${hf_access_token}" \ #recommended to use hugginface_cli for token management 
