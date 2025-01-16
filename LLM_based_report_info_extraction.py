@@ -261,6 +261,11 @@ def get_tokenizer(args):
     if args.model_path == 'aaditya/Llama3-OpenBioLLM-8B': tokenizer_model_path = 'aaditya/Llama3-OpenBioLLM-70B'
     else: tokenizer_model_path = args.model_path
     tokenizer = AutoTokenizer.from_pretrained(tokenizer_model_path, token=args.hf_access_token, use_fast=args.use_fast_tokenizer)#, add_prefix_space=True)
+
+    if tokenizer.bos_token is None: #for qwen models bos_token is Null but pad_token is set https://huggingface.co/Qwen/Qwen2-7B-Instruct/discussions/15
+        if not tokenizer.pad_token is None: tokenizer.bos_token = tokenizer.pad_token
+        if not tokenizer.bos_token_id is None: tokenizer.bos_token = tokenizer.convert_ids_to_tokens(tokenizer.bos_token_id)
+    
     tokenizer.pad_token_id = tokenizer.eos_token_id
     tokenizer.pad_token = tokenizer.eos_token
     return  tokenizer
